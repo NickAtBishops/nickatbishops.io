@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GGC Underwriting Engine</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-tertiary: #1a1a25;
+            --bg-card: #0e0e14;
+            --accent: #3b82f6;
+            --accent-glow: rgba(59, 130, 246, 0.15);
+            --green: #10b981;
+            --amber: #f59e0b;
+            --red: #ef4444;
+            --text: #f0f0f5;
+            --text-secondary: #9898a8;
+            --text-muted: #5a5a6e;
+            --border: #252530;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'DM Sans', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+
+        /* Grid background */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image: 
+                linear-gradient(rgba(59,130,246,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(59,130,246,0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .app {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Header */
+        .header {
+            padding: 16px 28px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(10, 10, 15, 0.8);
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .logo-icon {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, #3b82f6, #06b6d4);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-text h1 {
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+        }
+
+        .logo-text span {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-radius: 24px;
+            font-size: 13px;
+            color: var(--green);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--green);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.9); }
+        }
+
+        /* Layout */
+        .main {
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            min-height: calc(100vh - 77px);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: var(--bg-card);
+            border-right: 1px solid var(--border);
+            padding: 24px;
+            overflow-y: auto;
+        }
+
+        .section-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--text-muted);
+            margin-bottom: 14px;
+            font-weight: 600;
+        }
+
+        .section {
+            margin-bottom: 28px;
+        }
+
+        /* Upload */
+        .upload-zone {
+            border: 2px dashed var(--border);
+            border-radius: 14px;
+            padding: 36px 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: var(--bg-secondary);
+        }
+
+        .upload-zone:hover, .upload-zone.dragging {
+            border-color: var(--accent);
+            background: var(--accent-glow);
+        }
+
+        .upload-icon {
+            font-size: 36px;
+            margin-bottom: 12px;
+        }
+
+        .upload-text {
+            font-size: 15px;
+            color: var(--text-secondary);
+        }
+
+        .upload-text strong {
+            color: var(--accent);
+        }
+
+        .upload-hint {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 8px;
+        }
+
+        /* Files list */
+        .files-list {
+            margin-top: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+        }
+
+        .file-icon {
+            font-size: 22px;
+        }
+
+        .file-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .file-name {
+            font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-meta {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .file-remove {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .file-remove:hover {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--red);
+        }
+
+        /* Form */
+        .form-group {
+            margin-bottom: 14px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 14px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .form-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        /* Button */
+        .btn-primary {
+            width: 100%;
+            padding: 14px 20px;
+            background: linear-gradient(135deg, var(--accent), #2563eb);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(59, 130, 246, 0.35);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Results */
+        .results {
+            padding: 28px;
+            overflow-y: auto;
+        }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 450px;
+            text-align: center;
+        }
+
+        .empty-icon {
+            font-size: 56px;
+            margin-bottom: 20px;
+            opacity: 0.4;
+        }
+
+        .empty-title {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .empty-text {
+            color: var(--text-secondary);
+            max-width: 400px;
+            font-size: 15px;
+            line-height: 1.7;
+        }
+
+        /* Results header */
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 24px;
+        }
+
+        .results-title {
+            font-size: 24px;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+        }
+
+        .results-subtitle {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+
+        .btn-export {
+            padding: 12px 22px;
+            background: var(--green);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .btn-export:hover {
+            background: #059669;
+            transform: translateY(-1px);
+        }
+
+        /* Metrics */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .metric-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 18px;
+        }
+
+        .metric-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .metric-value {
+            font-size: 26px;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: -0.5px;
+        }
+
+        .metric-value.positive { color: var(--green); }
+        .metric-value.warning { color: var(--amber); }
+
+        .metric-note {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 20px;
+            background: var(--bg-primary);
+            padding: 4px;
+            border-radius: 10px;
+            width: fit-content;
+        }
+
+        .tab {
+            padding: 10px 18px;
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            color: var(--text-muted);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .tab:hover {
+            color: var(--text);
+        }
+
+        .tab.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .card-header {
+            padding: 14px 18px;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-body {
+            padding: 18px;
+        }
+
+        /* Table */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th {
+            text-align: left;
+            padding: 12px 14px;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            font-weight: 600;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .data-table th.right { text-align: right; }
+
+        .data-table td {
+            padding: 12px 14px;
+            font-size: 14px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .data-table td.right {
+            text-align: right;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+        }
+
+        .data-table tr:last-child td { border-bottom: none; }
+
+        .data-table .total-row {
+            background: var(--bg-tertiary);
+        }
+
+        .data-table .total-row td {
+            font-weight: 600;
+        }
+
+        .income { color: var(--green); }
+        .expense { color: var(--red); }
+
+        /* Badge */
+        .badge {
+            display: inline-flex;
+            padding: 3px 8px;
+            border-radius: 5px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .badge.t3 { background: rgba(139, 92, 246, 0.15); color: #a78bfa; }
+        .badge.t12 { background: rgba(6, 182, 212, 0.15); color: #22d3ee; }
+        .badge.ggc { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+
+        /* Anomalies */
+        .anomaly-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .anomaly-item {
+            display: flex;
+            gap: 14px;
+            padding: 16px;
+            background: var(--bg-primary);
+            border-radius: 10px;
+            border-left: 4px solid;
+        }
+
+        .anomaly-item.warning { border-left-color: var(--amber); }
+        .anomaly-item.info { border-left-color: var(--accent); }
+
+        .anomaly-icon { font-size: 20px; }
+
+        .anomaly-content { flex: 1; }
+
+        .anomaly-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .anomaly-desc {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* Loading */
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 10, 15, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(8px);
+        }
+
+        .loading-content {
+            text-align: center;
+        }
+
+        .loading-spinner {
+            width: 56px;
+            height: 56px;
+            border: 4px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 24px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .loading-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .loading-step {
+            color: var(--text-secondary);
+            font-size: 15px;
+        }
+
+        .loading-progress {
+            margin-top: 28px;
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            padding: 18px 24px;
+            text-align: left;
+        }
+
+        .progress-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        .progress-item.active { color: var(--accent); }
+        .progress-item.done { color: var(--green); }
+
+        /* Responsive */
+        @media (max-width: 1100px) {
+            .main { grid-template-columns: 1fr; }
+            .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
+            .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 600px) {
+            .metrics-grid { grid-template-columns: 1fr; }
+            .form-row { grid-template-columns: 1fr; }
+            .header { padding: 12px 16px; }
+            .sidebar, .results { padding: 16px; }
+        }
+
+        /* Hidden */
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- Loading Overlay -->
+        <div class="loading-overlay hidden" id="loading">
+            <div class="loading-content">
+                <div class="loading-spinner"></div>
+                <div class="loading-title">Analyzing Financials</div>
+                <div class="loading-step" id="loadingStep">Reading documents...</div>
+                <div class="loading-progress">
+                    <div class="progress-item" id="prog1">○ Extract financial data</div>
+                    <div class="progress-item" id="prog2">○ Normalize to GGC methodology</div>
+                    <div class="progress-item" id="prog3">○ Identify anomalies</div>
+                    <div class="progress-item" id="prog4">○ Generate output</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">GGC</div>
+                <div class="logo-text">
+                    <h1>Underwriting Engine</h1>
+                    <span>AI-Powered Financial Analysis</span>
+                </div>
+            </div>
+            <div class="status">
+                <div class="status-dot"></div>
+                <span>Ready</span>
+            </div>
+        </header>
+
+        <!-- Main -->
+        <div class="main">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="section">
+                    <div class="section-title">Upload Financials</div>
+                    <div class="upload-zone" id="uploadZone">
+                        <div class="upload-icon">📊</div>
+                        <div class="upload-text"><strong>Drop files</strong> or click to browse</div>
+                        <div class="upload-hint">T-12, P&L, Rent Roll (Excel/CSV)</div>
+                        <input type="file" id="fileInput" multiple accept=".xlsx,.xls,.csv" style="display:none">
+                    </div>
+                    <div class="files-list" id="filesList"></div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">Property Details</div>
+                    <div class="form-group">
+                        <label class="form-label">Property Name</label>
+                        <input type="text" class="form-input" id="propName" placeholder="e.g. Bit O Heaven">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Address / Market</label>
+                        <input type="text" class="form-input" id="propAddress" placeholder="e.g. Donna, TX">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label"># Units</label>
+                            <input type="number" class="form-input" id="propUnits" placeholder="667">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Asking Price ($)</label>
+                            <input type="number" class="form-input" id="propPrice" placeholder="18200000">
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn-primary" id="analyzeBtn" disabled>
+                    <span>🔍</span>
+                    <span>Analyze & Normalize</span>
+                </button>
+            </aside>
+
+            <!-- Results -->
+            <main class="results">
+                <!-- Empty State -->
+                <div class="empty-state" id="emptyState">
+                    <div class="empty-icon">📈</div>
+                    <h2 class="empty-title">Ready to Analyze</h2>
+                    <p class="empty-text">Upload seller financials in any format. The AI will parse, normalize to GGC methodology, and generate underwriting output ready for your Excel model.</p>
+                </div>
+
+                <!-- Results Content -->
+                <div class="hidden" id="resultsContent">
+                    <div class="results-header">
+                        <div>
+                            <h2 class="results-title" id="resultsTitle">Property Analysis</h2>
+                            <p class="results-subtitle" id="resultsSubtitle"></p>
+                        </div>
+                        <button class="btn-export" id="exportBtn">
+                            <span>📥</span>
+                            <span>Download Excel</span>
+                        </button>
+                    </div>
+
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-label">GGC UW NOI</div>
+                            <div class="metric-value" id="metricNOI">$0</div>
+                            <div class="metric-note" id="metricNOINote"></div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">Cap Rate</div>
+                            <div class="metric-value" id="metricCap">0%</div>
+                            <div class="metric-note" id="metricCapNote"></div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">Price/Unit</div>
+                            <div class="metric-value" id="metricPPU">$0</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">Expense Ratio</div>
+                            <div class="metric-value" id="metricExp">0%</div>
+                            <div class="metric-note" id="metricExpNote"></div>
+                        </div>
+                    </div>
+
+                    <div class="tabs">
+                        <button class="tab active" data-tab="summary">Summary</button>
+                        <button class="tab" data-tab="income">Income</button>
+                        <button class="tab" data-tab="expenses">Expenses</button>
+                        <button class="tab" data-tab="flags">Flags <span id="flagCount">(0)</span></button>
+                    </div>
+
+                    <div id="tabContent"></div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let files = [];
+        let fileContents = '';
+        let results = null;
+        let activeTab = 'summary';
+
+        // DOM Elements
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const filesList = document.getElementById('filesList');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const loading = document.getElementById('loading');
+        const loadingStep = document.getElementById('loadingStep');
+        const emptyState = document.getElementById('emptyState');
+        const resultsContent = document.getElementById('resultsContent');
+        const exportBtn = document.getElementById('exportBtn');
+        const tabContent = document.getElementById('tabContent');
+
+        // Format helpers
+        const fmt = (v) => {
+            if (!v && v !== 0) return '$0';
+            const abs = Math.abs(v);
+            if (abs >= 1e6) return `$${(v/1e6).toFixed(2)}M`;
+            return new Intl.NumberFormat('en-US', {style:'currency',currency:'USD',maximumFractionDigits:0}).format(v);
+        };
+        const pct = (v) => v ? `${(v*100).toFixed(2)}%` : '0%';
+
+        // File handling
+        uploadZone.addEventListener('click', () => fileInput.click());
+        uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragging'); });
+        uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragging'));
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragging');
+            handleFiles(e.dataTransfer.files);
+        });
+        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+        async function handleFiles(newFiles) {
+            const validFiles = Array.from(newFiles).filter(f => f.name.match(/\.(xlsx|xls|csv)$/i));
+            files = [...files, ...validFiles];
+            
+            // Read file contents
+            for (const file of validFiles) {
+                if (file.name.match(/\.(xlsx|xls)$/i)) {
+                    const data = await file.arrayBuffer();
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    workbook.SheetNames.forEach(name => {
+                        const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[name]);
+                        if (csv.trim()) {
+                            fileContents += `\n=== SHEET: ${name} ===\n${csv}\n`;
+                        }
+                    });
+                } else if (file.name.match(/\.csv$/i)) {
+                    const text = await file.text();
+                    fileContents += `\n=== FILE: ${file.name} ===\n${text}\n`;
+                }
+            }
+            
+            renderFiles();
+            analyzeBtn.disabled = files.length === 0;
+        }
+
+        function renderFiles() {
+            filesList.innerHTML = files.map((f, i) => `
+                <div class="file-item">
+                    <span class="file-icon">📗</span>
+                    <div class="file-info">
+                        <div class="file-name">${f.name}</div>
+                        <div class="file-meta">${(f.size/1024).toFixed(1)} KB</div>
+                    </div>
+                    <button class="file-remove" onclick="removeFile(${i})">✕</button>
+                </div>
+            `).join('');
+        }
+
+        function removeFile(index) {
+            files = files.filter((_, i) => i !== index);
+            renderFiles();
+            analyzeBtn.disabled = files.length === 0;
+        }
+
+        // Analyze
+        analyzeBtn.addEventListener('click', analyze);
+
+        async function analyze() {
+            if (files.length === 0) return;
+            
+            loading.classList.remove('hidden');
+            updateProgress(1, 'Reading financial documents...');
+
+            try {
+                const propName = document.getElementById('propName').value;
+                const propAddress = document.getElementById('propAddress').value;
+                const propUnits = document.getElementById('propUnits').value;
+                const propPrice = document.getElementById('propPrice').value;
+
+                updateProgress(2, 'AI normalizing to GGC methodology...');
+                
+                // Call backend API
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        fileContents,
+                        propertyInfo: {
+                            name: propName,
+                            address: propAddress,
+                            units: propUnits,
+                            askingPrice: propPrice
+                        }
+                    })
+                });
+
+                if (!response.ok) throw new Error('API request failed');
+                
+                updateProgress(3, 'Identifying anomalies...');
+                results = await response.json();
+                
+                // Fill in property info if not returned
+                results.propertyName = results.propertyName || propName || 'Property';
+                results.units = results.units || parseInt(propUnits) || 100;
+                results.askingPrice = results.askingPrice || parseFloat(propPrice) || 0;
+                results.address = results.address || propAddress;
+
+                updateProgress(4, 'Generating output...');
+                await new Promise(r => setTimeout(r, 500));
+                
+                renderResults();
+            } catch (error) {
+                console.error('Analysis error:', error);
+                alert('Analysis failed. Make sure the server is running. Check console for details.');
+            } finally {
+                loading.classList.add('hidden');
+            }
+        }
+
+        function updateProgress(step, text) {
+            loadingStep.textContent = text;
+            for (let i = 1; i <= 4; i++) {
+                const el = document.getElementById(`prog${i}`);
+                if (i < step) {
+                    el.className = 'progress-item done';
+                    el.innerHTML = '✓ ' + el.textContent.substring(2);
+                } else if (i === step) {
+                    el.className = 'progress-item active';
+                } else {
+                    el.className = 'progress-item';
+                }
+            }
+        }
+
+        // Render results
+        function renderResults() {
+            emptyState.classList.add('hidden');
+            resultsContent.classList.remove('hidden');
+
+            document.getElementById('resultsTitle').textContent = results.propertyName || 'Property Analysis';
+            document.getElementById('resultsSubtitle').textContent = `${results.units} Units • ${results.address || 'Location TBD'} • GGC Normalized`;
+
+            // Metrics
+            const noi = results.summary?.netOperatingIncome?.ggcUW || 0;
+            const cap = results.summary?.capRate || 0;
+            const ppu = results.summary?.pricePerUnit || 0;
+            const exp = results.summary?.expenseRatio || 0;
+
+            document.getElementById('metricNOI').textContent = fmt(noi);
+            document.getElementById('metricNOINote').textContent = `vs Seller: ${fmt(results.summary?.netOperatingIncome?.seller)}`;
+
+            const capEl = document.getElementById('metricCap');
+            capEl.textContent = pct(cap);
+            capEl.className = `metric-value ${cap >= 0.055 ? 'positive' : 'warning'}`;
+            document.getElementById('metricCapNote').textContent = cap >= 0.055 ? '✓ Meets threshold' : '⚠ Review';
+
+            document.getElementById('metricPPU').textContent = fmt(ppu);
+
+            const expEl = document.getElementById('metricExp');
+            expEl.textContent = pct(exp);
+            expEl.className = `metric-value ${exp <= 0.55 ? 'positive' : 'warning'}`;
+            document.getElementById('metricExpNote').textContent = exp <= 0.55 ? '✓ Normal range' : '⚠ Elevated';
+
+            document.getElementById('flagCount').textContent = `(${results.anomalies?.length || 0})`;
+
+            renderTab();
+        }
+
+        // Tabs
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                activeTab = tab.dataset.tab;
+                renderTab();
+            });
+        });
+
+        function renderTab() {
+            if (!results) return;
+            
+            if (activeTab === 'summary') {
+                tabContent.innerHTML = `
+                    <div class="card">
+                        <div class="card-header">📊 GGC Pro Forma Summary</div>
+                        <div class="card-body">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Line Item</th>
+                                        <th class="right">Seller T12</th>
+                                        <th class="right">GGC UW</th>
+                                        <th class="right">Per Unit</th>
+                                        <th>Method</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Gross Potential Rent</td>
+                                        <td class="right income">${fmt(results.income?.grossPotentialRent?.t12)}</td>
+                                        <td class="right income">${fmt(results.income?.grossPotentialRent?.ggcUW)}</td>
+                                        <td class="right">${fmt(results.income?.grossPotentialRent?.perUnit)}</td>
+                                        <td><span class="badge t3">T3 Ann</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Less: Vacancy (5%)</td>
+                                        <td class="right expense">${fmt(results.income?.vacancy?.seller)}</td>
+                                        <td class="right expense">${fmt(results.income?.vacancy?.ggcUW)}</td>
+                                        <td class="right expense">${fmt(results.income?.vacancy?.perUnit)}</td>
+                                        <td><span class="badge ggc">GGC UW</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Effective Gross Income</strong></td>
+                                        <td class="right"><strong>${fmt(results.income?.effectiveGrossIncome?.seller)}</strong></td>
+                                        <td class="right"><strong>${fmt(results.income?.effectiveGrossIncome?.ggcUW)}</strong></td>
+                                        <td class="right"><strong>${fmt(results.income?.effectiveGrossIncome?.perUnit)}</strong></td>
+                                        <td></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Total Expenses</td>
+                                        <td class="right expense">${fmt(results.expenses?.totalExpenses?.t12)}</td>
+                                        <td class="right expense">${fmt(results.expenses?.totalExpenses?.ggcUW)}</td>
+                                        <td class="right expense">${fmt(results.expenses?.totalExpenses?.perUnit)}</td>
+                                        <td><span class="badge t12">T12+3%</span></td>
+                                    </tr>
+                                    <tr class="total-row">
+                                        <td><strong>Net Operating Income</strong></td>
+                                        <td class="right income"><strong>${fmt(results.summary?.netOperatingIncome?.seller)}</strong></td>
+                                        <td class="right income"><strong>${fmt(results.summary?.netOperatingIncome?.ggcUW)}</strong></td>
+                                        <td class="right income"><strong>${fmt(results.summary?.netOperatingIncome?.perUnit)}</strong></td>
+                                        <td></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    ${results.analysisNotes ? `
+                    <div class="card">
+                        <div class="card-header">📝 Analysis Notes</div>
+                        <div class="card-body">
+                            <p style="color: var(--text-secondary); line-height: 1.7; white-space: pre-wrap;">${results.analysisNotes}</p>
+                        </div>
+                    </div>` : ''}
+                `;
+            } else if (activeTab === 'income') {
+                const rows = [
+                    ['Gross Potential Rent', results.income?.grossPotentialRent, 'T3 Ann', 't3'],
+                    ['Utility Reimbursement', results.income?.utilityReimbursement, 'T12', 't12'],
+                    ['Home Rent Income', results.income?.homeRentIncome, 'T12', 't12'],
+                    ['Other Income', results.income?.otherIncome, 'T12', 't12'],
+                    ['Less: Vacancy', results.income?.vacancy, '5% UW', 'ggc'],
+                ];
+                tabContent.innerHTML = `
+                    <div class="card">
+                        <div class="card-header">💰 Income Detail</div>
+                        <div class="card-body">
+                            <table class="data-table">
+                                <thead>
+                                    <tr><th>Category</th><th class="right">T12</th><th class="right">GGC UW</th><th class="right">Per Unit</th><th>Method</th></tr>
+                                </thead>
+                                <tbody>
+                                    ${rows.map(([label, data, method, badge]) => `
+                                        <tr>
+                                            <td>${label}</td>
+                                            <td class="right">${fmt(data?.t12 || data?.seller)}</td>
+                                            <td class="right">${fmt(data?.ggcUW)}</td>
+                                            <td class="right">${fmt(data?.perUnit)}</td>
+                                            <td><span class="badge ${badge}">${method}</span></td>
+                                        </tr>
+                                    `).join('')}
+                                    <tr class="total-row">
+                                        <td><strong>Effective Gross Income</strong></td>
+                                        <td class="right"><strong>${fmt(results.income?.effectiveGrossIncome?.seller)}</strong></td>
+                                        <td class="right"><strong>${fmt(results.income?.effectiveGrossIncome?.ggcUW)}</strong></td>
+                                        <td class="right"><strong>${fmt(results.income?.effectiveGrossIncome?.perUnit)}</strong></td>
+                                        <td></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            } else if (activeTab === 'expenses') {
+                const rows = [
+                    ['RE Taxes', results.expenses?.reTaxes],
+                    ['Insurance', results.expenses?.insurance],
+                    ['Total Utilities', results.expenses?.totalUtilities],
+                    ['Repair & Maintenance', results.expenses?.repairMaintenance],
+                    ['Management Fee (5%)', results.expenses?.managementFee],
+                    ['Payroll', results.expenses?.payroll],
+                    ['G&A', results.expenses?.generalAdmin],
+                    ['CapEx Reserve ($50/unit)', results.expenses?.capExReserve],
+                ];
+                tabContent.innerHTML = `
+                    <div class="card">
+                        <div class="card-header">📋 Expense Detail</div>
+                        <div class="card-body">
+                            <table class="data-table">
+                                <thead>
+                                    <tr><th>Category</th><th class="right">T12</th><th class="right">GGC UW</th><th class="right">Per Unit</th></tr>
+                                </thead>
+                                <tbody>
+                                    ${rows.map(([label, data]) => `
+                                        <tr>
+                                            <td>${label}</td>
+                                            <td class="right">${fmt(data?.t12)}</td>
+                                            <td class="right">${fmt(data?.ggcUW)}</td>
+                                            <td class="right">${data?.rate ? pct(data.rate) : fmt(data?.perUnit)}</td>
+                                        </tr>
+                                    `).join('')}
+                                    <tr class="total-row">
+                                        <td><strong>Total Expenses</strong></td>
+                                        <td class="right expense"><strong>${fmt(results.expenses?.totalExpenses?.t12)}</strong></td>
+                                        <td class="right expense"><strong>${fmt(results.expenses?.totalExpenses?.ggcUW)}</strong></td>
+                                        <td class="right expense"><strong>${fmt(results.expenses?.totalExpenses?.perUnit)}</strong></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            } else if (activeTab === 'flags') {
+                const anomalies = results.anomalies || [];
+                tabContent.innerHTML = `
+                    <div class="card">
+                        <div class="card-header">🚩 Anomalies & Items to Investigate</div>
+                        <div class="card-body">
+                            ${anomalies.length === 0 ? `
+                                <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+                                    <div style="font-size: 32px; margin-bottom: 8px;">✅</div>
+                                    No significant anomalies detected
+                                </div>
+                            ` : `
+                                <div class="anomaly-list">
+                                    ${anomalies.map(a => `
+                                        <div class="anomaly-item ${a.type}">
+                                            <span class="anomaly-icon">${a.type === 'warning' ? '⚠️' : 'ℹ️'}</span>
+                                            <div class="anomaly-content">
+                                                <div class="anomaly-title">${a.title}</div>
+                                                <div class="anomaly-desc">${a.description}</div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // Export
+        exportBtn.addEventListener('click', () => {
+            if (!results) return;
+            const units = results.units || 100;
+            
+            const uwData = [
+                ['GARY GROUP CAPITAL - UNDERWRITING OUTPUT'],
+                [''],
+                ['Property:', results.propertyName, '', 'Units:', units],
+                ['Address:', results.address || '', '', 'Asking:', results.askingPrice],
+                [''],
+                ['INCOME', 'Seller T12', 'GGC UW', 'Per Unit', 'Method'],
+                ['Gross Potential Rent', results.income?.grossPotentialRent?.t12 || 0, results.income?.grossPotentialRent?.ggcUW || 0, results.income?.grossPotentialRent?.perUnit || 0, 'T3 Annualized'],
+                ['Less: Vacancy (5%)', results.income?.vacancy?.seller || 0, results.income?.vacancy?.ggcUW || 0, results.income?.vacancy?.perUnit || 0, 'GGC UW'],
+                ['Utility Reimbursement', results.income?.utilityReimbursement?.t12 || 0, results.income?.utilityReimbursement?.ggcUW || 0, results.income?.utilityReimbursement?.perUnit || 0, 'T12'],
+                ['Other Income', results.income?.otherIncome?.t12 || 0, results.income?.otherIncome?.ggcUW || 0, results.income?.otherIncome?.perUnit || 0, 'T12'],
+                ['EFFECTIVE GROSS INCOME', '', results.income?.effectiveGrossIncome?.ggcUW || 0, results.income?.effectiveGrossIncome?.perUnit || 0, ''],
+                [''],
+                ['EXPENSES', 'Seller T12', 'GGC UW', 'Per Unit', 'Method'],
+                ['RE Taxes', results.expenses?.reTaxes?.t12 || 0, results.expenses?.reTaxes?.ggcUW || 0, results.expenses?.reTaxes?.perUnit || 0, 'T12+3%'],
+                ['Insurance', results.expenses?.insurance?.t12 || 0, results.expenses?.insurance?.ggcUW || 0, results.expenses?.insurance?.perUnit || 0, 'T12+3%'],
+                ['Total Utilities', results.expenses?.totalUtilities?.t12 || 0, results.expenses?.totalUtilities?.ggcUW || 0, results.expenses?.totalUtilities?.perUnit || 0, 'T12+3%'],
+                ['Repair & Maintenance', results.expenses?.repairMaintenance?.t12 || 0, results.expenses?.repairMaintenance?.ggcUW || 0, results.expenses?.repairMaintenance?.perUnit || 0, 'T12+3%'],
+                ['Management Fee', results.expenses?.managementFee?.t12 || 0, results.expenses?.managementFee?.ggcUW || 0, '5%', '5% EGI'],
+                ['Payroll', results.expenses?.payroll?.t12 || 0, results.expenses?.payroll?.ggcUW || 0, results.expenses?.payroll?.perUnit || 0, 'T12+3%'],
+                ['G&A', results.expenses?.generalAdmin?.t12 || 0, results.expenses?.generalAdmin?.ggcUW || 0, results.expenses?.generalAdmin?.perUnit || 0, 'T12+3%'],
+                ['CapEx Reserve', 0, results.expenses?.capExReserve?.ggcUW || (units * 50), 50, '$50/unit'],
+                ['TOTAL EXPENSES', results.expenses?.totalExpenses?.t12 || 0, results.expenses?.totalExpenses?.ggcUW || 0, results.expenses?.totalExpenses?.perUnit || 0, ''],
+                [''],
+                ['NET OPERATING INCOME', results.summary?.netOperatingIncome?.seller || 0, results.summary?.netOperatingIncome?.ggcUW || 0, results.summary?.netOperatingIncome?.perUnit || 0, ''],
+                [''],
+                ['KEY METRICS'],
+                ['Cap Rate', '', (results.summary?.capRate * 100 || 0).toFixed(2) + '%'],
+                ['Price/Unit', '', results.summary?.pricePerUnit || 0],
+                ['Expense Ratio', '', (results.summary?.expenseRatio * 100 || 0).toFixed(1) + '%'],
+            ];
+            
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(uwData);
+            ws['!cols'] = [{wch:25},{wch:15},{wch:15},{wch:12},{wch:15}];
+            XLSX.utils.book_append_sheet(wb, ws, 'GGC Underwriting');
+            
+            if (results.anomalies?.length > 0) {
+                const anomalyData = [['ANOMALIES & FLAGS'], [''], ['Type', 'Issue', 'Description'], 
+                    ...results.anomalies.map(a => [a.type, a.title, a.description])];
+                const ws2 = XLSX.utils.aoa_to_sheet(anomalyData);
+                XLSX.utils.book_append_sheet(wb, ws2, 'Flags');
+            }
+            
+            XLSX.writeFile(wb, `GGC_UW_${results.propertyName || 'Output'}.xlsx`);
+        });
+    </script>
+</body>
+</html>
