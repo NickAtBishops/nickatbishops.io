@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GGC Deal Engine</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --primary: #1a365d;
+      --primary-light: #2c5282;
+      --accent: #3182ce;
+      --accent-light: #63b3ed;
+      --success: #38a169;
+      --warning: #dd6b20;
+      --danger: #e53e3e;
+      --gray-50: #f7fafc;
+      --gray-100: #edf2f7;
+      --gray-200: #e2e8f0;
+      --gray-300: #cbd5e0;
+      --gray-400: #a0aec0;
+      --gray-500: #718096;
+      --gray-600: #4a5568;
+      --gray-700: #2d3748;
+      --gray-800: #1a202c;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+      --shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+      --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+      --shadow-xl: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+    }
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body { 
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+      background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ed 100%);
+      min-height: 100vh;
+      color: var(--gray-700);
+    }
+    
+    .header { 
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 50%, var(--accent) 100%);
+      color: white; 
+      padding: 32px 40px;
+      position: relative;
+      overflow: hidden;
+    }
+    .header::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -10%;
+      width: 400px;
+      height: 400px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 50%;
+    }
+    .header::after {
+      content: '';
+      position: absolute;
+      bottom: -30%;
+      left: 10%;
+      width: 200px;
+      height: 200px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 50%;
+    }
+    .header-content { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; }
+    .header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; display: flex; align-items: center; gap: 12px; }
+    .header h1 .icon { font-size: 32px; }
+    .header p { opacity: 0.9; margin-top: 8px; font-size: 15px; font-weight: 400; }
+    .header .badge { 
+      display: inline-block; 
+      background: rgba(255,255,255,0.2); 
+      padding: 4px 12px; 
+      border-radius: 20px; 
+      font-size: 12px; 
+      font-weight: 500;
+      margin-top: 12px;
+      backdrop-filter: blur(4px);
+    }
+    
+    .container { max-width: 1200px; margin: 0 auto; padding: 32px; }
+    
+    .card { 
+      background: white; 
+      border-radius: 16px; 
+      box-shadow: var(--shadow);
+      padding: 28px; 
+      margin-bottom: 24px;
+      border: 1px solid var(--gray-100);
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .card:hover { box-shadow: var(--shadow-lg); }
+    
+    .card h2 { 
+      font-size: 15px; 
+      font-weight: 600; 
+      color: var(--primary); 
+      margin-bottom: 20px; 
+      display: flex; 
+      align-items: center; 
+      gap: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .card h2 .icon { 
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--primary-light) 100%);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+    
+    .api-key-section { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .api-key-section input { 
+      flex: 1; 
+      min-width: 280px;
+      padding: 12px 16px; 
+      border: 2px solid var(--gray-200); 
+      border-radius: 10px; 
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    .api-key-section input:focus { 
+      outline: none; 
+      border-color: var(--accent); 
+      box-shadow: 0 0 0 4px rgba(49,130,206,0.1); 
+    }
+    
+    .btn { 
+      padding: 12px 24px; 
+      border-radius: 10px; 
+      font-size: 14px; 
+      font-weight: 600; 
+      cursor: pointer; 
+      transition: all 0.2s; 
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-primary { 
+      background: linear-gradient(135deg, var(--accent) 0%, var(--primary-light) 100%);
+      color: white;
+      box-shadow: 0 4px 14px rgba(49,130,206,0.4);
+    }
+    .btn-primary:hover { 
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(49,130,206,0.5);
+    }
+    .btn-primary:disabled { 
+      background: var(--gray-300); 
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    .btn-secondary { 
+      background: var(--gray-100); 
+      color: var(--gray-600);
+      border: 2px solid var(--gray-200);
+    }
+    .btn-secondary:hover { background: var(--gray-200); }
+    .btn-success { 
+      background: linear-gradient(135deg, var(--success) 0%, #2f855a 100%);
+      color: white;
+      box-shadow: 0 4px 14px rgba(56,161,105,0.4);
+    }
+    .btn-success:hover { 
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(56,161,105,0.5);
+    }
+    
+    .upload-zone { 
+      border: 3px dashed var(--gray-300); 
+      border-radius: 16px; 
+      padding: 48px; 
+      text-align: center; 
+      transition: all 0.3s; 
+      cursor: pointer;
+      background: var(--gray-50);
+    }
+    .upload-zone:hover, .upload-zone.dragover { 
+      border-color: var(--accent); 
+      background: linear-gradient(135deg, rgba(49,130,206,0.05) 0%, rgba(99,179,237,0.05) 100%);
+      transform: scale(1.01);
+    }
+    .upload-zone input { display: none; }
+    .upload-zone p { color: var(--gray-500); margin-top: 12px; font-size: 14px; }
+    .upload-zone .upload-icon { 
+      font-size: 56px; 
+      margin-bottom: 8px;
+      filter: grayscale(0.3);
+    }
+    .upload-zone .upload-title { 
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--gray-700);
+    }
+    
+    .file-list { margin-top: 20px; }
+    .file-item { 
+      display: flex; 
+      align-items: center; 
+      justify-content: space-between; 
+      padding: 14px 18px; 
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      border-radius: 12px; 
+      margin-bottom: 10px;
+      transition: all 0.2s;
+    }
+    .file-item:hover { background: var(--gray-100); }
+    .file-item .file-icon { font-size: 24px; margin-right: 12px; }
+    .file-item .name { font-weight: 600; color: var(--gray-700); }
+    .file-item .size { color: var(--gray-500); font-size: 13px; margin-left: 8px; }
+    .file-item .remove { 
+      color: var(--danger); 
+      cursor: pointer; 
+      padding: 6px 12px;
+      border-radius: 6px;
+      transition: background 0.2s;
+    }
+    .file-item .remove:hover { background: rgba(229,62,62,0.1); }
+    
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; }
+    .form-group label { 
+      display: block; 
+      font-size: 13px; 
+      font-weight: 600; 
+      color: var(--gray-600); 
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .form-group input { 
+      width: 100%; 
+      padding: 12px 16px; 
+      border: 2px solid var(--gray-200); 
+      border-radius: 10px; 
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    .form-group input:focus { 
+      outline: none; 
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px rgba(49,130,206,0.1);
+    }
+    
+    .progress-section { display: none; }
+    .progress-section.active { display: block; }
+    .progress-bar-container { 
+      height: 12px; 
+      background: var(--gray-200); 
+      border-radius: 6px; 
+      overflow: hidden; 
+      margin: 20px 0;
+    }
+    .progress-bar { 
+      height: 100%; 
+      background: linear-gradient(90deg, var(--accent), var(--accent-light), var(--accent));
+      background-size: 200% 100%;
+      animation: shimmer 2s infinite;
+      transition: width 0.5s ease-out; 
+      border-radius: 6px;
+    }
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    .progress-text { 
+      display: flex; 
+      justify-content: space-between; 
+      color: var(--gray-600); 
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .progress-detail { 
+      color: var(--gray-500); 
+      font-size: 13px; 
+      margin-top: 8px;
+      font-style: italic;
+    }
+    
+    .time-estimate { 
+      background: linear-gradient(135deg, rgba(49,130,206,0.1) 0%, rgba(99,179,237,0.1) 100%);
+      border: 1px solid rgba(49,130,206,0.2);
+      border-radius: 12px; 
+      padding: 16px 20px; 
+      margin-bottom: 20px;
+    }
+    .time-estimate .label { font-size: 13px; color: var(--accent); font-weight: 500; }
+    .time-estimate .value { font-size: 20px; font-weight: 700; color: var(--primary); }
+    
+    .results-section { display: none; }
+    .results-section.active { display: block; }
+    .download-buttons { display: flex; gap: 16px; flex-wrap: wrap; }
+    .download-btn { 
+      display: flex; 
+      align-items: center; 
+      gap: 10px; 
+      padding: 16px 28px;
+      font-size: 15px;
+    }
+    .download-btn svg { width: 22px; height: 22px; }
+    
+    .error-message { 
+      background: linear-gradient(135deg, rgba(229,62,62,0.1) 0%, rgba(252,129,129,0.1) 100%);
+      border: 1px solid rgba(229,62,62,0.3);
+      color: #c53030; 
+      padding: 16px 20px; 
+      border-radius: 12px; 
+      margin-top: 20px; 
+      display: none;
+      font-weight: 500;
+    }
+    .error-message.active { display: block; }
+    
+    .rate-limit-notice {
+      background: linear-gradient(135deg, rgba(221,107,32,0.1) 0%, rgba(237,137,54,0.1) 100%);
+      border: 1px solid rgba(221,107,32,0.3);
+      color: #c05621;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      margin-top: 12px;
+    }
+    
+    .backend-config { 
+      font-size: 12px; 
+      color: var(--gray-500); 
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--gray-200);
+    }
+    .backend-config input { 
+      font-size: 12px; 
+      padding: 8px 12px; 
+      width: 320px;
+      border: 1px solid var(--gray-200);
+      border-radius: 6px;
+    }
+    
+    .analyze-btn-container { text-align: center; }
+    .analyze-btn { 
+      width: 100%;
+      padding: 18px 32px;
+      font-size: 17px;
+      letter-spacing: 0.3px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-content">
+      <h1><span class="icon">🏠</span> GGC Deal Engine</h1>
+      <p>AI-Powered MHC & RV Park Underwriting Automation</p>
+      <div class="badge">⚡ Speed is everything in deal flow</div>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- API Key -->
+    <div class="card">
+      <h2><span class="icon">🔑</span> API Configuration</h2>
+      <div class="api-key-section">
+        <input type="password" id="apiKey" placeholder="Enter your Anthropic API key (sk-ant-...)" />
+        <button class="btn btn-secondary" onclick="toggleApiKey()">👁 Show</button>
+        <button class="btn btn-primary" onclick="saveApiKey()">💾 Save Key</button>
+      </div>
+      <div class="rate-limit-notice">
+        ⏱️ <strong>Note:</strong> Analysis includes 30-second pauses between API calls to stay under rate limits (~2 min total)
+      </div>
+      <div class="backend-config">
+        <label>Backend URL (Vercel): </label>
+        <input type="text" id="backendUrl" value="https://your-vercel-app.vercel.app" />
+        <button class="btn btn-secondary" onclick="saveBackendUrl()" style="padding: 6px 12px; font-size: 12px; margin-left: 8px;">Save</button>
+      </div>
+    </div>
+
+    <!-- File Upload -->
+    <div class="card">
+      <h2><span class="icon">📄</span> Upload Documents</h2>
+      <div class="upload-zone" id="uploadZone">
+        <div class="upload-icon">📁</div>
+        <div class="upload-title">Drop files here or click to browse</div>
+        <p>Accepts: T-12, Rent Roll, Offering Memo (PDF, Excel)</p>
+        <input type="file" id="fileInput" multiple accept=".pdf,.xlsx,.xls,.csv" />
+      </div>
+      <div class="file-list" id="fileList"></div>
+    </div>
+
+    <!-- Property Info -->
+    <div class="card">
+      <h2><span class="icon">🏘️</span> Property Information</h2>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Property Address</label>
+          <input type="text" id="propertyAddress" placeholder="123 Main St, City, State" />
+        </div>
+        <div class="form-group">
+          <label>Total Units/Sites</label>
+          <input type="number" id="totalUnits" placeholder="100" />
+        </div>
+        <div class="form-group">
+          <label>Asking Price ($)</label>
+          <input type="number" id="askingPrice" placeholder="5000000" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Analyze Button -->
+    <div class="card">
+      <div class="time-estimate" id="timeEstimate">
+        <div class="label">⏱️ Estimated Processing Time</div>
+        <div class="value">~2 minutes (includes rate limit pauses)</div>
+      </div>
+      <div class="analyze-btn-container">
+        <button class="btn btn-primary analyze-btn" id="analyzeBtn" onclick="startAnalysis()">
+          🚀 Analyze Deal
+        </button>
+      </div>
+      <div class="error-message" id="errorMessage"></div>
+    </div>
+
+    <!-- Progress -->
+    <div class="card progress-section" id="progressSection">
+      <h2><span class="icon">⏳</span> Analysis Progress</h2>
+      <div class="progress-bar-container">
+        <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+      </div>
+      <div class="progress-text">
+        <span id="progressStep">Initializing...</span>
+        <span id="progressPercent">0%</span>
+      </div>
+      <div class="progress-detail" id="progressDetail"></div>
+    </div>
+
+    <!-- Results -->
+    <div class="card results-section" id="resultsSection">
+      <h2><span class="icon">✅</span> Download Results</h2>
+      <div class="download-buttons">
+        <button class="btn btn-success download-btn" onclick="downloadExcel()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>
+          Download Excel Model
+        </button>
+        <button class="btn btn-success download-btn" onclick="downloadMemo()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          Download Investment Memo
+        </button>
+        <button class="btn btn-secondary download-btn" onclick="downloadJSON()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Download Raw JSON
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============ STATE ============
+    const state = {
+      apiKey: localStorage.getItem('ggc_api_key') || '',
+      backendUrl: localStorage.getItem('ggc_backend_url') || 'https://your-vercel-app.vercel.app',
+      files: [],
+      fileContents: {},
+      processing: false,
+      result: null,
+      error: null
+    };
+
+    // Initialize
+    document.getElementById('apiKey').value = state.apiKey;
+    document.getElementById('backendUrl').value = state.backendUrl;
+
+    // ============ API KEY ============
+    function toggleApiKey() {
+      const input = document.getElementById('apiKey');
+      input.type = input.type === 'password' ? 'text' : 'password';
+    }
+
+    function saveApiKey() {
+      state.apiKey = document.getElementById('apiKey').value;
+      localStorage.setItem('ggc_api_key', state.apiKey);
+      alert('API key saved!');
+    }
+
+    function saveBackendUrl() {
+      state.backendUrl = document.getElementById('backendUrl').value;
+      localStorage.setItem('ggc_backend_url', state.backendUrl);
+      alert('Backend URL saved!');
+    }
+
+    // ============ FILE UPLOAD ============
+    const uploadZone = document.getElementById('uploadZone');
+    const fileInput = document.getElementById('fileInput');
+
+    uploadZone.addEventListener('click', () => fileInput.click());
+    uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+    uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+    uploadZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadZone.classList.remove('dragover');
+      handleFiles(e.dataTransfer.files);
+    });
+    fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+    async function handleFiles(fileList) {
+      for (const file of fileList) {
+        if (!state.files.find(f => f.name === file.name)) {
+          state.files.push(file);
+          await extractFileContent(file);
+        }
+      }
+      renderFileList();
+      updateTimeEstimate();
+    }
+
+    async function extractFileContent(file) {
+      try {
+        if (file.name.endsWith('.pdf')) {
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          let text = '';
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            text += content.items.map(item => item.str).join(' ') + '\n';
+          }
+          state.fileContents[file.name] = text;
+        } else if (file.name.match(/\.xlsx?$/i) || file.name.endsWith('.csv')) {
+          const arrayBuffer = await file.arrayBuffer();
+          const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+          let text = '';
+          workbook.SheetNames.forEach(name => {
+            const sheet = workbook.Sheets[name];
+            text += `=== ${name} ===\n`;
+            text += XLSX.utils.sheet_to_csv(sheet) + '\n\n';
+          });
+          state.fileContents[file.name] = text;
+        }
+      } catch (e) {
+        console.error('Error extracting file:', e);
+        state.fileContents[file.name] = '[Error extracting content]';
+      }
+    }
+
+    function removeFile(index) {
+      const file = state.files[index];
+      delete state.fileContents[file.name];
+      state.files.splice(index, 1);
+      renderFileList();
+      updateTimeEstimate();
+    }
+
+    function renderFileList() {
+      const list = document.getElementById('fileList');
+      list.innerHTML = state.files.map((f, i) => `
+        <div class="file-item">
+          <div>
+            <span class="name">${f.name}</span>
+            <span class="size">(${(f.size / 1024).toFixed(1)} KB)</span>
+          </div>
+          <span class="remove" onclick="removeFile(${i})">✕</span>
+        </div>
+      `).join('');
+    }
+
+    function updateTimeEstimate() {
+      const estimate = document.getElementById('timeEstimate');
+      if (state.files.length > 0) {
+        estimate.style.display = 'block';
+        const totalSize = state.files.reduce((sum, f) => sum + f.size, 0);
+        const minutes = Math.max(2, Math.ceil(totalSize / 100000));
+        document.getElementById('timeValue').textContent = `~${minutes}-${minutes + 1} minutes`;
+      } else {
+        estimate.style.display = 'none';
+      }
+    }
+
+    // ============ ANALYSIS ============
+    async function startAnalysis() {
+      if (!state.apiKey) {
+        showError('Please enter your API key');
+        return;
+      }
+      if (state.files.length === 0) {
+        showError('Please upload at least one document');
+        return;
+      }
+
+      state.processing = true;
+      state.error = null;
+      document.getElementById('analyzeBtn').disabled = true;
+      document.getElementById('progressSection').classList.add('active');
+      document.getElementById('resultsSection').classList.remove('active');
+      hideError();
+
+      // Helper function for delay (rate limiting)
+      const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+      try {
+        // Step 1: Parse financials
+        updateProgress('Analyzing operating statements...', 10, 'Extracting T-12 and rent roll data');
+        const financials = await analyzeFinancials();
+
+        // Rate limit delay - wait 30 seconds before next API call
+        updateProgress('Waiting for rate limit...', 30, 'Pausing 30s to stay under API limits');
+        await delay(30000);
+
+        // Step 2: Get comps
+        updateProgress('Researching comparables...', 40, 'Finding rent and sale comps');
+        const comps = await getComps();
+
+        // Rate limit delay - wait 30 seconds before next API call
+        updateProgress('Waiting for rate limit...', 60, 'Pausing 30s to stay under API limits');
+        await delay(30000);
+
+        // Step 3: Market analysis
+        updateProgress('Analyzing market...', 70, 'Demographics and alternative housing');
+        const market = await getMarketData();
+
+        // Combine results
+        state.result = {
+          financials,
+          comps,
+          market,
+          propertyInfo: {
+            address: document.getElementById('propertyAddress').value,
+            totalUnits: parseInt(document.getElementById('totalUnits').value) || 0,
+            askingPrice: parseInt(document.getElementById('askingPrice').value) || 0
+          },
+          timestamp: new Date().toISOString()
+        };
+
+        updateProgress('Complete!', 100, 'Ready to download');
+        document.getElementById('resultsSection').classList.add('active');
+
+      } catch (e) {
+        console.error(e);
+        showError(e.message);
+      } finally {
+        state.processing = false;
+        document.getElementById('analyzeBtn').disabled = false;
+      }
+    }
+
+    async function analyzeFinancials() {
+      const allContent = Object.entries(state.fileContents)
+        .map(([name, content]) => `=== ${name} ===\n${content}`)
+        .join('\n\n');
+
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': state.apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 16000,
+          messages: [{
+            role: 'user',
+            content: `You are a GGC underwriting analyst. Parse this operating statement and rent roll data.
+
+DOCUMENTS:
+${allContent}
+
+Return a JSON object with this structure:
+{
+  "propertyInfo": {
+    "name": "string",
+    "address": "string", 
+    "city": "string",
+    "state": "string",
+    "totalUnits": number
+  },
+  "income": [
+    {
+      "sellerName": "original line item name",
+      "ggcCategory": "one of: Gross Potential Rent, Vacancy, Concessions, Bad Debt, Utility Reimbursement, Home Rent Income, RV Site Rental Income, Storage Income, Laundry Income, Other Income",
+      "t12Amount": number,
+      "t3Amount": number,
+      "confidence": "high/medium/low",
+      "notes": "string"
+    }
+  ],
+  "expenses": [
+    {
+      "sellerName": "original line item name",
+      "ggcCategory": "one of: RE Taxes, Insurance, Gas/Fuel, Electricity, Water and Sewer, Trash Removal, Repair and Maintenance, Ground Maintenance, Recreational Amenities, Management Fee, Payroll, Employee Allowance, General and Administrative, Model Units, Professional Fees, Advertising, Home Rent Expense, Other, Cap-Ex Reserve",
+      "t12Amount": number,
+      "t3Amount": number,
+      "confidence": "high/medium/low",
+      "notes": "string"
+    }
+  ],
+  "rentRoll": {
+    "totalUnits": number,
+    "occupiedUnits": number,
+    "vacantUnits": number,
+    "occupancyRate": number,
+    "avgMonthlyRent": number,
+    "unitMix": [
+      {"unitType": "string", "count": number, "occupied": number, "avgRent": number}
+    ]
+  },
+  "flags": [
+    {"item": "string", "issue": "string", "severity": "high/medium/low", "recommendation": "string"}
+  ],
+  "questions": ["string"]
+}
+
+Return ONLY valid JSON, no other text.`
+          }]
+        })
+      });
+
+      const data = await response.json();
+      if (data.error) throw new Error(data.error.message);
+      
+      const text = data.content[0].text;
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('Failed to parse financial analysis');
+      return JSON.parse(jsonMatch[0]);
+    }
+
+    async function getComps() {
+      const address = document.getElementById('propertyAddress').value || 'midwest mobile home park';
+      
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': state.apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 8000,
+          tools: [{
+            type: 'web_search_20250305',
+            name: 'web_search'
+          }],
+          messages: [{
+            role: 'user',
+            content: `Search for mobile home park rent comparables and recent sales near: ${address}
+
+Find:
+1. 3-5 nearby MHP/RV parks with lot rents and occupancy
+2. 2-3 recent MHP sales with cap rates and $/unit
+
+Return JSON:
+{
+  "rentComps": [
+    {"name": "string", "city": "string", "state": "string", "units": number, "lotRent": number, "occupancy": number, "distance": "string", "source": "string"}
+  ],
+  "saleComps": [
+    {"name": "string", "location": "string", "saleDate": "string", "units": number, "salePrice": number, "pricePerUnit": number, "capRate": number, "source": "string"}
+  ],
+  "marketRentConclusion": number,
+  "marketCapRateConclusion": number
+}
+
+Return ONLY valid JSON.`
+          }]
+        })
+      });
+
+      const data = await response.json();
+      if (data.error) throw new Error(data.error.message);
+      
+      const textBlocks = data.content.filter(c => c.type === 'text');
+      const text = textBlocks.map(c => c.text).join('');
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        return { rentComps: [], saleComps: [], marketRentConclusion: 0, marketCapRateConclusion: 0 };
+      }
+      return JSON.parse(jsonMatch[0]);
+    }
+
+    async function getMarketData() {
+      const address = document.getElementById('propertyAddress').value || 'midwest';
+      
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': state.apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 8000,
+          tools: [{
+            type: 'web_search_20250305',
+            name: 'web_search'
+          }],
+          messages: [{
+            role: 'user',
+            content: `Search for market demographics and housing data near: ${address}
+
+Find:
+1. County population and growth
+2. Median household income
+3. Unemployment rate
+4. Major employers
+5. Average home price
+6. Average apartment rents
+
+Return JSON:
+{
+  "demographics": {
+    "countyPopulation": number,
+    "populationGrowth": number,
+    "medianHHIncome": number,
+    "unemploymentRate": number,
+    "majorEmployers": ["string"]
+  },
+  "altHousing": {
+    "avgSFHomePrice": number,
+    "avgRent1BR": number,
+    "avgRent2BR": number,
+    "mhpAllInCost": number
+  },
+  "demandSignal": "Strong/Moderate/Weak",
+  "demandRationale": "string"
+}
+
+Return ONLY valid JSON.`
+          }]
+        })
+      });
+
+      const data = await response.json();
+      if (data.error) throw new Error(data.error.message);
+      
+      const textBlocks = data.content.filter(c => c.type === 'text');
+      const text = textBlocks.map(c => c.text).join('');
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        return { demographics: {}, altHousing: {}, demandSignal: 'Unknown', demandRationale: '' };
+      }
+      return JSON.parse(jsonMatch[0]);
+    }
+
+    // ============ DOWNLOADS ============
+    async function downloadExcel() {
+      if (!state.result) return;
+      
+      try {
+        updateProgress('Generating Excel...', 50, 'Creating formatted workbook');
+        
+        const response = await fetch(`${state.backendUrl}/api/generate-excel`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(state.result)
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to generate Excel');
+        }
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `GGC_UW_${(state.result.propertyInfo?.name || 'Deal').replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        updateProgress('Complete!', 100, 'Excel downloaded');
+      } catch (e) {
+        showError('Excel generation failed: ' + e.message);
+      }
+    }
+
+    async function downloadMemo() {
+      if (!state.result) return;
+      
+      try {
+        updateProgress('Generating Memo...', 50, 'Creating Word document');
+        
+        const response = await fetch(`${state.backendUrl}/api/generate-memo`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(state.result)
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to generate memo');
+        }
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `GGC_Memo_${(state.result.propertyInfo?.name || 'Deal').replace(/[^a-zA-Z0-9]/g, '_')}.docx`;
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        updateProgress('Complete!', 100, 'Memo downloaded');
+      } catch (e) {
+        showError('Memo generation failed: ' + e.message);
+      }
+    }
+
+    function downloadJSON() {
+      if (!state.result) return;
+      const blob = new Blob([JSON.stringify(state.result, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `GGC_Data_${(state.result.propertyInfo?.name || 'Deal').replace(/[^a-zA-Z0-9]/g, '_')}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // ============ UI HELPERS ============
+    function updateProgress(step, percent, detail) {
+      document.getElementById('progressStep').textContent = step;
+      document.getElementById('progressPercent').textContent = percent + '%';
+      document.getElementById('progressBar').style.width = percent + '%';
+      document.getElementById('progressDetail').textContent = detail || '';
+    }
+
+    function showError(message) {
+      const el = document.getElementById('errorMessage');
+      el.textContent = message;
+      el.classList.add('active');
+    }
+
+    function hideError() {
+      document.getElementById('errorMessage').classList.remove('active');
+    }
+  </script>
+</body>
+</html>
